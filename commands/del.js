@@ -1,11 +1,14 @@
 const { SlashCommandBuilder } = require("@discordjs/builders");
-const { EmbedBuilder } = require("discord.js");
+const {
+  EmbedBuilder,
+  PermissionsBitField,
+  ChannelType,
+} = require("discord.js");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("del")
-    .setDescription("Delete a campaign or a new character")
-
+    .setDescription("Delete a campaign or a note")
     .addSubcommand((subcommand) =>
       subcommand
         .setName("campaign")
@@ -13,11 +16,10 @@ module.exports = {
         .addStringOption((option) =>
           option
             .setName("name")
-            .setDescription("Define the name of the campaign")
+            .setDescription("Name of the campaign to delete")
             .setRequired(true)
         )
     )
-
     .addSubcommand((subcommand) =>
       subcommand
         .setName("note")
@@ -25,215 +27,180 @@ module.exports = {
         .addStringOption((option) =>
           option
             .setName("campaign")
-            .setDescription("Define the name of the campaign")
+            .setDescription("Name of the campaign containing the note")
             .setRequired(true)
         )
     ),
 
   async execute(interaction) {
-    await interaction.deferReply({ content: "Executing...", ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
 
-    const guild = DungeonHelper.guilds.cache.get(interaction.guildId);
+    const guild = interaction.client.guilds.cache.get(interaction.guildId);
+    const memberRoles = interaction.member.roles.cache;
+
     if (
-      interaction.member.roles.cache.get(
-        guild.roles.cache.find((r) => r.name === "Commander").id
-      ) != null ||
-      interaction.member.roles.cache.get(
-        guild.roles.cache.find((r) => r.name === "Adventurer").id
-      ) != null
+      memberRoles.has(
+        guild.roles.cache.find((r) => r.name === "Commander")?.id
+      ) ||
+      memberRoles.has(
+        guild.roles.cache.find((r) => r.name === "Adventurer")?.id
+      )
     ) {
       if (interaction.options.getSubcommand() === "campaign") {
-        const name = interaction.options.getString("name").capitalize();
+        const name = capitalize(interaction.options.getString("name"));
 
         if (
-          interaction.member.roles.cache.find(
-            (r) => r.name === name + " Owner"
-          ) != null
+          memberRoles.has(
+            guild.roles.cache.find((r) => r.name === `${name} Owner`)?.id
+          )
         ) {
-          guild.roles.cache.find((r) => r.name === name).delete();
-          guild.roles.cache.find((r) => r.name === name + " Master").delete();
-          guild.roles.cache.find((r) => r.name === name + " Owner").delete();
-
-          let category = guild.channels.cache.find(
-            (c) => c.name === "🎲・" + name
+          const campaignRole = guild.roles.cache.find((r) => r.name === name);
+          const masterRole = guild.roles.cache.find(
+            (r) => r.name === `${name} Master`
+          );
+          const ownerRole = guild.roles.cache.find(
+            (r) => r.name === `${name} Owner`
           );
 
-          category.children.forEach((channel) => channel.delete());
+          campaignRole?.delete();
+          masterRole?.delete();
+          ownerRole?.delete();
 
-          category.delete();
+          const category = guild.channels.cache.find(
+            (c) =>
+              c.name === `🎲・${name}` && c.type === ChannelType.GuildCategory
+          );
+
+          if (category) {
+            for (const channel of category.children.cache.values()) {
+              await channel.delete();
+            }
+            await category.delete();
+          }
 
           const embed = new EmbedBuilder()
             .setColor("#013455")
-            .setTitle("Campain " + name + " deleted!")
+            .setTitle(`Campaign ${name} deleted!`)
             .setDescription(
-              "Your campain has been deleted, and you lose your owner permissions!"
+              "Your campaign has been deleted, and you lose your owner permissions!"
             )
-            .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-            .setThumbnail(DungeonHelper.user.displayAvatarURL())
+            .setAuthor({
+              name: "Dungeon Helper",
+              iconURL: interaction.client.user.displayAvatarURL(),
+            })
+            .setThumbnail(interaction.client.user.displayAvatarURL())
             .setFooter({
               text: `Dungeon Helper`,
-              iconURL: DungeonHelper.user.displayAvatarURL(),
+              iconURL: interaction.client.user.displayAvatarURL(),
             });
 
           await interaction.editReply({
             content: "Success!",
-            ephemeral: true,
             embeds: [embed],
           });
         } else {
           const embed = new EmbedBuilder()
             .setColor("#013455")
-            .setTitle("Campain " + name + " can't be delted!")
-            .setDescription("You're not the owner of the campain!")
-            .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-            .setThumbnail(DungeonHelper.user.displayAvatarURL())
+            .setTitle(`Campaign ${name} can't be deleted!`)
+            .setDescription("You're not the owner of the campaign!")
+            .setAuthor({
+              name: "Dungeon Helper",
+              iconURL: interaction.client.user.displayAvatarURL(),
+            })
+            .setThumbnail(interaction.client.user.displayAvatarURL())
             .setFooter({
               text: `Dungeon Helper`,
-              iconURL: DungeonHelper.user.displayAvatarURL(),
+              iconURL: interaction.client.user.displayAvatarURL(),
             });
 
           await interaction.editReply({
             content: "Error!",
-            ephemeral: true,
             embeds: [embed],
           });
         }
       } else if (interaction.options.getSubcommand() === "note") {
-        const campaignName = interaction.options
-          .getString("campaign")
-          .capitalize();
+        const campaignName = capitalize(
+          interaction.options.getString("campaign")
+        );
         const campaignCategory = guild.channels.cache.find(
-          (c) => c.type == "GUILD_CATEGORY" && c.name == "🎲・" + campaignName
+          (c) =>
+            c.type === ChannelType.GuildCategory &&
+            c.name === `🎲・${campaignName}`
         );
 
-        if (campaignCategory != null) {
+        if (campaignCategory) {
           if (
-            interaction.member.roles.cache.get(
-              guild.roles.cache.find((r) => r.name === campaignName).id
-            ) != null
+            memberRoles.has(
+              guild.roles.cache.find((r) => r.name === campaignName)?.id
+            )
           ) {
-            if (
-              guild.channels.cache.find(
-                (c) =>
-                  c.type == "GUILD_TEXT" &&
-                  c.topic ==
-                    "Note of the campaign " +
-                      campaignName +
-                      " of " +
-                      interaction.user.id
-              ) != null
-            ) {
-              guild.channels.cache
-                .find(
-                  (c) =>
-                    c.type == "GUILD_TEXT" &&
-                    c.topic ==
-                      "Note of the campaign " +
-                        campaignName +
-                        " of " +
-                        interaction.user.id
-                )
-                .delete()
-                .then(async (channel) => {
-                  const embed = new EmbedBuilder()
-                    .setColor("#013455")
-                    .setTitle("Note deleted!")
-                    .setDescription("Your note channel has been deleted.")
-                    .setAuthor(
-                      "Dungeon Helper",
-                      DungeonHelper.user.displayAvatarURL()
-                    )
-                    .setThumbnail(DungeonHelper.user.displayAvatarURL())
-                    .setFooter({
-                      text: `Dungeon Helper`,
-                      iconURL: DungeonHelper.user.displayAvatarURL(),
-                    });
+            const noteChannel = guild.channels.cache.find(
+              (c) =>
+                c.type === ChannelType.GuildText &&
+                c.topic ===
+                  `Note of the campaign ${campaignName} of ${interaction.user.id}`
+            );
 
-                  await interaction.editReply({
-                    content: "Success!",
-                    ephemeral: true,
-                    embeds: [embed],
-                  });
+            if (noteChannel) {
+              await noteChannel.delete();
+
+              const embed = new EmbedBuilder()
+                .setColor("#013455")
+                .setTitle("Note deleted!")
+                .setDescription("Your note channel has been deleted.")
+                .setAuthor({
+                  name: "Dungeon Helper",
+                  iconURL: interaction.client.user.displayAvatarURL(),
+                })
+                .setThumbnail(interaction.client.user.displayAvatarURL())
+                .setFooter({
+                  text: `Dungeon Helper`,
+                  iconURL: interaction.client.user.displayAvatarURL(),
                 });
+
+              await interaction.editReply({
+                content: "Success!",
+                embeds: [embed],
+              });
             } else {
               const embed = new EmbedBuilder()
                 .setColor("#013455")
                 .setTitle("Note doesn't exist!")
                 .setDescription("You don't have any note channel")
-                .setAuthor(
-                  "Dungeon Helper",
-                  DungeonHelper.user.displayAvatarURL()
-                )
-                .setThumbnail(DungeonHelper.user.displayAvatarURL())
+                .setAuthor({
+                  name: "Dungeon Helper",
+                  iconURL: interaction.client.user.displayAvatarURL(),
+                })
+                .setThumbnail(interaction.client.user.displayAvatarURL())
                 .setFooter({
                   text: `Dungeon Helper`,
-                  iconURL: DungeonHelper.user.displayAvatarURL(),
+                  iconURL: interaction.client.user.displayAvatarURL(),
                 });
 
               await interaction.editReply({
                 content: "Error!",
-                ephemeral: true,
                 embeds: [embed],
               });
             }
-          } else if (
-            interaction.member.roles.cache.get(
-              guild.roles.cache.find((r) => r.name === campaignName + " Master")
-                .id
-            ) != null ||
-            interaction.member.roles.cache.get(
-              guild.roles.cache.find((r) => r.name === campaignName + " Owner")
-                .id
-            ) != null
-          ) {
-            const embed = new EmbedBuilder()
-              .setColor("#013455")
-              .setTitle("Cannot delete the channel!")
-              .setDescription(
-                "You can't delete the <#" +
-                  guild.channels.cache.find(
-                    (c) =>
-                      c.type == "GUILD_TEXT" &&
-                      c.name == "🐉｜master" &&
-                      c.parent == campaignCategory
-                  ).id +
-                  "> channel"
-              )
-              .setAuthor(
-                "Dungeon Helper",
-                DungeonHelper.user.displayAvatarURL()
-              )
-              .setThumbnail(DungeonHelper.user.displayAvatarURL())
-              .setFooter({
-                text: `Dungeon Helper`,
-                iconURL: DungeonHelper.user.displayAvatarURL(),
-              });
-
-            await interaction.editReply({
-              content: "Error!",
-              ephemeral: true,
-              embeds: [embed],
-            });
           } else {
             const embed = new EmbedBuilder()
               .setColor("#013455")
               .setTitle("You are not in the campaign")
               .setDescription(
-                "You aren't an adventurer of the campaign " + campaignName
+                `You aren't an adventurer of the campaign ${campaignName}`
               )
-              .setAuthor(
-                "Dungeon Helper",
-                DungeonHelper.user.displayAvatarURL()
-              )
-              .setThumbnail(DungeonHelper.user.displayAvatarURL())
+              .setAuthor({
+                name: "Dungeon Helper",
+                iconURL: interaction.client.user.displayAvatarURL(),
+              })
+              .setThumbnail(interaction.client.user.displayAvatarURL())
               .setFooter({
                 text: `Dungeon Helper`,
-                iconURL: DungeonHelper.user.displayAvatarURL(),
+                iconURL: interaction.client.user.displayAvatarURL(),
               });
 
             await interaction.editReply({
               content: "Error!",
-              ephemeral: true,
               embeds: [embed],
             });
           }
@@ -241,17 +208,19 @@ module.exports = {
           const embed = new EmbedBuilder()
             .setColor("#013455")
             .setTitle("The campaign doesn't exist")
-            .setDescription("The campaign " + campaignName + " doesn't exist!")
-            .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-            .setThumbnail(DungeonHelper.user.displayAvatarURL())
+            .setDescription(`The campaign ${campaignName} doesn't exist!`)
+            .setAuthor({
+              name: "Dungeon Helper",
+              iconURL: interaction.client.user.displayAvatarURL(),
+            })
+            .setThumbnail(interaction.client.user.displayAvatarURL())
             .setFooter({
               text: `Dungeon Helper`,
-              iconURL: DungeonHelper.user.displayAvatarURL(),
+              iconURL: interaction.client.user.displayAvatarURL(),
             });
 
           await interaction.editReply({
             content: "Error!",
-            ephemeral: true,
             embeds: [embed],
           });
         }
@@ -261,22 +230,24 @@ module.exports = {
         .setColor("#013455")
         .setTitle("Accept the rules")
         .setDescription("To use the commands you have to accept the rules")
-        .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-        .setThumbnail(DungeonHelper.user.displayAvatarURL())
+        .setAuthor({
+          name: "Dungeon Helper",
+          iconURL: interaction.client.user.displayAvatarURL(),
+        })
+        .setThumbnail(interaction.client.user.displayAvatarURL())
         .setFooter({
           text: `Dungeon Helper`,
-          iconURL: DungeonHelper.user.displayAvatarURL(),
+          iconURL: interaction.client.user.displayAvatarURL(),
         });
 
       await interaction.editReply({
         content: "Error!",
-        ephemeral: true,
         embeds: [embed],
       });
     }
   },
 };
 
-String.prototype.capitalize = function () {
-  return this.charAt(0).toUpperCase() + this.slice(1).toLowerCase();
-};
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}

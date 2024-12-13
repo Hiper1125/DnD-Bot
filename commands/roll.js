@@ -1,9 +1,9 @@
-const { SlashCommandBuilder } = require("@discordjs/builders");
 const {
+  SlashCommandBuilder,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
 } = require("discord.js");
 
 const thumbnail =
@@ -12,8 +12,7 @@ const thumbnail =
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("roll")
-    .setDescription("Roll dices according to a given formula")
-
+    .setDescription("Roll dice according to a given formula")
     .addStringOption((option) =>
       option
         .setName("formula")
@@ -38,7 +37,7 @@ module.exports = {
       content: "Executing...",
       ephemeral: private,
     });
-    //roll formula: 2d20 + 6d20 + 1d40 + 20
+
     const formula = interaction.options.getString("formula");
 
     const { numbers, dices } = getTotal(formula);
@@ -47,42 +46,41 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setColor("#e6101d")
-      .setTitle("Your roll result is " + numbers[index])
+      .setTitle(`Your roll result is ${numbers[index]}`)
       .setDescription(
-        "You've launched some dices with all your might and you obtained: " +
-          numbers[index]
+        `You've launched some dice with all your might and you obtained: ${numbers[index]}`
       )
-      .addField("Used Formula", formula, false)
-      .addField("Singles Rolls", dices[index], false)
-      .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
+      .addFields(
+        { name: "Used Formula", value: formula, inline: false },
+        { name: "Singles Rolls", value: dices[index], inline: false }
+      )
+      .setAuthor({
+        name: "Dungeon Helper",
+        iconURL: interaction.client.user.displayAvatarURL(),
+      })
       .setThumbnail(thumbnail)
       .setFooter({
-        text: `Dungeon Helper`,
-        iconURL: DungeonHelper.user.displayAvatarURL(),
+        text: "Dungeon Helper",
+        iconURL: interaction.client.user.displayAvatarURL(),
       });
 
-    const row = new ActionRowBuilder()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId("back")
-          .setLabel("﹤")
-          .setStyle(ButtonStyle.Primary)
-          .setDisabled(index === 0)
-      )
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId("roll")
-          .setEmoji("🎲")
-          .setLabel("Roll again")
-          .setStyle(ButtonStyle.Primary)
-      )
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId("next")
-          .setLabel("﹥")
-          .setStyle(ButtonStyle.Primary)
-          .setDisabled(index === numbers.length - 1)
-      );
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("back")
+        .setLabel("﹤")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(index === 0),
+      new ButtonBuilder()
+        .setCustomId("roll")
+        .setEmoji("🎲")
+        .setLabel("Roll again")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("next")
+        .setLabel("﹥")
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(index === numbers.length - 1)
+    );
 
     await interaction.editReply({
       content: "‎",
@@ -105,18 +103,22 @@ module.exports = {
 
         const embed = new EmbedBuilder()
           .setColor("#e6101d")
-          .setTitle("Your roll result is " + numbers[index])
+          .setTitle(`Your roll result is ${numbers[index]}`)
           .setDescription(
-            "You've launched some dices with all your might and you obtained: " +
-              numbers[index]
+            `You've launched some dice with all your might and you obtained: ${numbers[index]}`
           )
-          .addField("Used Formula", formula, false)
-          .addField("Singles Rolls", dices[index], false)
-          .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
+          .addFields(
+            { name: "Used Formula", value: formula, inline: false },
+            { name: "Singles Rolls", value: dices[index], inline: false }
+          )
+          .setAuthor({
+            name: "Dungeon Helper",
+            iconURL: interaction.client.user.displayAvatarURL(),
+          })
           .setThumbnail(thumbnail)
           .setFooter({
-            text: `Dungeon Helper`,
-            iconURL: DungeonHelper.user.displayAvatarURL(),
+            text: "Dungeon Helper",
+            iconURL: interaction.client.user.displayAvatarURL(),
           });
 
         row.components[0].setDisabled(index === 0);
@@ -137,18 +139,22 @@ module.exports = {
 
         const embed = new EmbedBuilder()
           .setColor("#e6101d")
-          .setTitle("Your roll result is " + numbers[index])
+          .setTitle(`Your roll result is ${numbers[index]}`)
           .setDescription(
-            "You've launched some dices with all your might and you obtained: " +
-              numbers[index]
+            `You've launched some dice with all your might and you obtained: ${numbers[index]}`
           )
-          .addField("Used Formula", formula, false)
-          .addField("Singles Rolls", dices[index], false)
-          .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
+          .addFields(
+            { name: "Used Formula", value: formula, inline: false },
+            { name: "Singles Rolls", value: dices[index], inline: false }
+          )
+          .setAuthor({
+            name: "Dungeon Helper",
+            iconURL: interaction.client.user.displayAvatarURL(),
+          })
           .setThumbnail(thumbnail)
           .setFooter({
-            text: `Dungeon Helper`,
-            iconURL: DungeonHelper.user.displayAvatarURL(),
+            text: "Dungeon Helper",
+            iconURL: interaction.client.user.displayAvatarURL(),
           });
 
         row.components[0].setDisabled(index === 0);
@@ -165,7 +171,7 @@ module.exports = {
       }
     });
 
-    collector.on("end", async (collected) => {
+    collector.on("end", async () => {
       row.components.forEach((c) => {
         c.setDisabled(true);
       });
@@ -184,11 +190,11 @@ const isNumber = (n) => {
   return (
     !isNaN(parseFloat(n)) &&
     isFinite(n) &&
-    n != "," &&
-    n != "+" &&
-    n != "-" &&
-    n != "*" &&
-    n != "/"
+    n !== "," &&
+    n !== "+" &&
+    n !== "-" &&
+    n !== "*" &&
+    n !== "/"
   );
 };
 
@@ -199,10 +205,8 @@ const getTotal = (formula) => {
 
   rolls.forEach((roll) => {
     var filtered = roll.split("d").filter(function (el) {
-      return el != null && el != "";
+      return el !== null && el !== "";
     });
-
-    // TODO x level of character (# and ✮)
 
     if (roll.includes("d")) {
       if (filtered.length > 1) {
@@ -241,7 +245,7 @@ const getTotal = (formula) => {
             value += parseInt(num);
             tDice += num;
 
-            if (i != numbers[numIndex].length - 1) {
+            if (i !== numbers[numIndex].length - 1) {
               tDice += ", ";
             }
           }

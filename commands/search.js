@@ -1,12 +1,10 @@
 const { SlashCommandBuilder } = require("@discordjs/builders");
 const { EmbedBuilder } = require("discord.js");
-var XMLHttpRequest = require("xhr2");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("search")
     .setDescription("Search in the D&D documentation")
-
     .addStringOption((option) =>
       option
         .setName("category")
@@ -25,7 +23,6 @@ module.exports = {
           { name: "Magic Item", value: "magic-items" }
         )
     )
-
     .addStringOption((option) =>
       option
         .setName("keyword")
@@ -38,209 +35,290 @@ module.exports = {
 
     const category = interaction.options.getString("category");
     const keyword = interaction.options.getString("keyword");
-    var url = "https://www.dnd5eapi.co/api/" + category;
+    let url = "https://www.dnd5eapi.co/api/" + category;
 
     let words = keyword.toLowerCase().split(" ");
     url += "/" + words.join("-");
     console.log(url);
 
-    getJSON(url, async function (err, data) {
-      if (err !== null) {
+    try {
+      const data = await fetchJSON(url);
+
+      if (!data) {
         const embed = new EmbedBuilder()
           .setColor("#e6101d")
-          .setTitle("Error " + err)
+          .setTitle("Error")
           .setDescription(
-            "The searched key (" +
-              interaction.options.getString("keyword") +
-              ") was not found on the documentation, try with a different keyword!"
+            `The searched key ("${interaction.options.getString(
+              "keyword"
+            )}") was not found in the documentation. Try a different keyword!`
           )
-          .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-          .setThumbnail(DungeonHelper.user.displayAvatarURL())
+          .setAuthor({
+            name: "Dungeon Helper",
+            iconURL: interaction.client.user.displayAvatarURL(),
+          })
+          .setThumbnail(interaction.client.user.displayAvatarURL())
           .setFooter({
-            text: `Dungeon Helper`,
-            iconURL: DungeonHelper.user.displayAvatarURL(),
+            text: "Dungeon Helper",
+            iconURL: interaction.client.user.displayAvatarURL(),
           });
 
-        await interaction.editReply({
+        return await interaction.editReply({
           content: "‎",
           ephemeral: true,
           embeds: [embed],
         });
-      } else {
-        //different embed based on the choosen category
-
-        let embed = new EmbedBuilder()
-          .setColor("#e6101d")
-          .setTitle(data.name)
-          .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-          .setThumbnail(DungeonHelper.user.displayAvatarURL())
-          .setFooter({
-            text: `Dungeon Helper`,
-            iconURL: DungeonHelper.user.displayAvatarURL(),
-          });
-
-        switch (category) {
-          case "races":
-            embed
-              .addField("Alignment", data.alignment, false)
-              .addField("Age", data.age, false)
-              .addField("Size", data.size_description, false)
-              .addField("Languages", data.language_desc, false);
-
-            let traits = "";
-
-            data.traits.forEach((trait) => {
-              traits += trait.name + "\n";
-            });
-
-            embed
-              .addField("Traits", traits, true)
-              .addField("Speed", data.speed.toString(), true);
-
-            break;
-
-          case "skills":
-            embed.setDescription(data.desc[0]);
-            break;
-
-          case "spells":
-            embed.setDescription(data.desc[0]);
-
-            if (data.higher_level) {
-              embed.addField("Higher level", data.higher_level[0], false);
-            }
-
-            embed
-              .addField("Range", data.range, true)
-              .addField("Duration", data.duration, true)
-              .addField("Casting time", data.casting_time, true)
-              .addField("Attack Type", data.school.name, true);
-
-            if (data.damage) {
-              embed.addField("Damage", data.damage.damage_type.name, true);
-            }
-
-            embed.addField("Level", data.level.toString(), true);
-
-            let classes = "";
-
-            data.classes.forEach((cClass) => {
-              classes += cClass.name + "\n";
-            });
-
-            embed.addField("Classes", classes, true);
-
-            break;
-          case "classes":
-            if (data.spellcasting) {
-              data.spellcasting.info.forEach((cast) => {
-                embed.addField(cast.name, cast.desc[0], false);
-              });
-            }
-
-            let skills = "";
-
-            data.proficiency_choices[0].from.forEach((skill) => {
-              skills += skill.name.replace("Skill: ", "") + "\n";
-            });
-
-            let items = "";
-
-            data.proficiencies.forEach((item) => {
-              items += item.name + "\n";
-            });
-
-            embed
-              .addField("Skills", skills, true)
-              .addField("Items", items, true);
-
-            break;
-          case "monsters":
-            embed
-              .addField("Size", data.size, true)
-              .addField("Type", data.type.capitalize(), true)
-              .addField("Alignment", data.alignment.capitalize(), true)
-              .addField("Damage", data.hit_dice, true)
-              .addField("Life", data.hit_points.toString(), true)
-              .addField("XP", (data.xp / 10).toString(), true)
-              .addField("Languages", data.languages.capitalize(), false);
-
-            data.actions.forEach((action) => {
-              embed.addField(action.name, action.desc);
-            });
-
-            if (data.legendary_actions) {
-              data.legendary_actions.forEach((action) => {
-                embed.addField(action.name, action.desc);
-              });
-            }
-
-            if (data.special_abilities) {
-              data.special_abilities.forEach((action) => {
-                embed.addField(action.name, action.desc);
-              });
-            }
-            break;
-          case "languages":
-            if (data.desc) {
-              embed.setDescription(data.desc);
-            }
-
-            let speakers = "";
-
-            data.typical_speakers.forEach((speaker) => {
-              speakers += speaker + "\n";
-            });
-
-            embed
-              .addField("Speakers", speakers, true)
-              .addField("Type", data.type, true);
-            break;
-
-          case "conditions":
-            let i = 0;
-
-            data.desc.forEach((desc) => {
-              if (i == 0) {
-                embed.setDescription(desc.replace("- ", ""));
-                i++;
-              } else {
-                embed.addField("‎", desc.replace("- ", ""), false);
-              }
-            });
-
-            break;
-
-          case "equipment":
-            objectToEmbed(data, embed, true);
-            break;
-
-          case "magic-items":
-            let j = 0;
-
-            data.desc.forEach((desc) => {
-              if (j == 0) {
-                embed.setDescription(desc);
-                j++;
-              } else {
-                embed.addField("‎", desc, false);
-              }
-            });
-
-            embed.addField("Category", data.equipment_category.name, false);
-            break;
-        }
-
-        await interaction.editReply({
-          content: "‎",
-          ephemeral: true,
-          embeds: [embed],
-        });
-
-        //console.log(JSON.stringify(data, null, 2));
       }
-    });
+
+      let embed = new EmbedBuilder()
+        .setColor("#e6101d")
+        .setTitle(data.name)
+        .setAuthor({
+          name: "Dungeon Helper",
+          iconURL: interaction.client.user.displayAvatarURL(),
+        })
+        .setThumbnail(interaction.client.user.displayAvatarURL())
+        .setFooter({
+          text: "Dungeon Helper",
+          iconURL: interaction.client.user.displayAvatarURL(),
+        });
+
+      // Handle different categories and data accordingly
+      switch (category) {
+        case "races":
+          let traits = data.traits.map((trait) => trait.name).join("\n");
+          embed.addFields(
+            { name: "Alignment", value: data.alignment || "N/A", inline: true },
+            { name: "Age", value: data.age || "N/A", inline: true },
+            {
+              name: "Size",
+              value: data.size_description || "N/A",
+              inline: true,
+            },
+            {
+              name: "Languages",
+              value: data.language_desc || "N/A",
+              inline: true,
+            },
+            { name: "Traits", value: traits || "None", inline: false },
+            {
+              name: "Speed",
+              value: data.speed.toString() || "N/A",
+              inline: true,
+            }
+          );
+          break;
+
+        case "skills":
+          embed.setDescription(data.desc[0] || "No description available.");
+          break;
+
+        case "spells":
+          embed.setDescription(data.desc[0] || "No description available.");
+          if (data.higher_level) {
+            embed.addFields(
+              {
+                name: "Higher level",
+                value: data.higher_level[0] || "N/A",
+                inline: false,
+              },
+              { name: "Range", value: data.range || "N/A", inline: true },
+              { name: "Duration", value: data.duration || "N/A", inline: true },
+              {
+                name: "Casting time",
+                value: data.casting_time || "N/A",
+                inline: true,
+              },
+              {
+                name: "Attack Type",
+                value: data.school.name || "N/A",
+                inline: true,
+              }
+            );
+          }
+          if (data.damage) {
+            embed.addFields({
+              name: "Damage",
+              value: data.damage.damage_type.name || "N/A",
+              inline: true,
+            });
+          }
+          embed.addFields(
+            { name: "Level", value: data.level.toString(), inline: true },
+            {
+              name: "Classes",
+              value: data.classes.map((c) => c.name).join("\n") || "None",
+              inline: true,
+            }
+          );
+          break;
+
+        case "classes":
+          if (data.spellcasting) {
+            data.spellcasting.info.forEach((cast) => {
+              embed.addFields({
+                name: cast.name,
+                value: cast.desc[0],
+                inline: false,
+              });
+            });
+          }
+
+          if (
+            data.proficiency_choices &&
+            data.proficiency_choices[0].from.options
+          ) {
+            const skills = data.proficiency_choices[0].from.options
+              .map((option) => option.item.name.replace("Skill: ", "")) // Extract the skill names
+              .join("\n");
+            embed.addFields({
+              name: "Skills",
+              value: skills || "None",
+              inline: true,
+            });
+          }
+
+          const items = data.proficiencies.map((item) => item.name).join("\n");
+
+          embed.addFields({
+            name: "Items",
+            value: items || "None",
+            inline: true,
+          });
+          break;
+
+        case "monsters":
+          embed.addFields(
+            { name: "Size", value: data.size || "N/A", inline: true },
+            {
+              name: "Type",
+              value: data.type.capitalize() || "N/A",
+              inline: true,
+            },
+            {
+              name: "Alignment",
+              value: data.alignment.capitalize() || "N/A",
+              inline: true,
+            },
+            { name: "Damage", value: data.hit_dice || "N/A", inline: true },
+            {
+              name: "Life",
+              value: data.hit_points.toString() || "N/A",
+              inline: true,
+            },
+            {
+              name: "XP",
+              value: (data.xp / 10).toString() || "N/A",
+              inline: true,
+            },
+            {
+              name: "Languages",
+              value: data.languages.capitalize() || "N/A",
+              inline: false,
+            }
+          );
+          data.actions.forEach((action) => {
+            embed.addFields({
+              name: action.name,
+              value: action.desc || "No description",
+              inline: false,
+            });
+          });
+
+          if (data.legendary_actions) {
+            data.legendary_actions.forEach((action) => {
+              embed.addFields({
+                name: action.name,
+                value: action.desc || "No description",
+                inline: false,
+              });
+            });
+          }
+
+          if (data.special_abilities) {
+            data.special_abilities.forEach((action) => {
+              embed.addFields({
+                name: action.name,
+                value: action.desc || "No description",
+                inline: false,
+              });
+            });
+          }
+          break;
+
+        case "languages":
+          embed.setDescription(data.desc || "No description available.");
+          const speakers = data.typical_speakers.join("\n") || "N/A";
+          embed.addFields(
+            { name: "Speakers", value: speakers, inline: true },
+            { name: "Type", value: data.type || "N/A", inline: true }
+          );
+          break;
+
+        case "conditions":
+          let conditionDesc = data.desc
+            .map((desc) => desc.replace("- ", ""))
+            .join("\n");
+          embed.setDescription(conditionDesc || "No description available.");
+          break;
+
+        case "equipment":
+          objectToEmbed(data, embed, true);
+          break;
+
+        case "magic-items":
+          let magicDesc = data.desc.join("\n") || "No description available.";
+          embed.setDescription(magicDesc);
+          embed.addFields({
+            name: "Category",
+            value: data.equipment_category.name,
+            inline: false,
+          });
+          break;
+
+        default:
+          embed.setDescription("No valid category selected.");
+      }
+
+      await interaction.editReply({
+        content: "‎",
+        ephemeral: true,
+        embeds: [embed],
+      });
+    } catch (error) {
+      console.error(error);
+      const embed = new EmbedBuilder()
+        .setColor("#e6101d")
+        .setTitle("Error")
+        .setDescription("An error occurred while fetching the data.")
+        .setAuthor({
+          name: "Dungeon Helper",
+          iconURL: interaction.client.user.displayAvatarURL(),
+        })
+        .setThumbnail(interaction.client.user.displayAvatarURL())
+        .setFooter({
+          text: "Dungeon Helper",
+          iconURL: interaction.client.user.displayAvatarURL(),
+        });
+
+      await interaction.editReply({
+        content: "‎",
+        ephemeral: true,
+        embeds: [embed],
+      });
+    }
   },
+};
+
+const fetchJSON = async (url) => {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    return null;
+  }
 };
 
 const objectToEmbed = (obj, embed, isFirst = false) => {
@@ -255,25 +333,25 @@ const objectToEmbed = (obj, embed, isFirst = false) => {
       if ((value.isArray && value.length > 0) || typeof value === "object") {
         // Exceptions
         if (key === "cost") {
-          embed.addField(
-            key.capitalize().replaceAll("_", " "),
-            value.quantity.toString() + value.unit.toString(),
-            true
-          );
+          embed.addFields({
+            name: key.capitalize().replaceAll("_", " "),
+            value: value.quantity.toString() + value.unit.toString(),
+            inline: true,
+          });
         } else {
-          embed.addField(
-            key.capitalize().replaceAll("_", " "),
-            objectToString(value, embed),
-            true
-          );
+          embed.addFields({
+            name: key.capitalize().replaceAll("_", " "),
+            value: objectToString(value, embed),
+            inline: true,
+          });
         }
       } else {
         if (!isFirst && key === "name" && key !== "index" && key !== "url") {
-          embed.addField(
-            key.capitalize().replaceAll("_", " "),
-            value.toString(),
-            true
-          );
+          embed.addFields({
+            name: key.capitalize().replaceAll("_", " "),
+            value: value.toString(),
+            inline: true,
+          });
         }
       }
     }
@@ -302,21 +380,6 @@ const objectToString = (obj, embed) => {
   });
 
   return string;
-};
-
-const getJSON = (url, callback) => {
-  var xhr = new XMLHttpRequest();
-  xhr.open("GET", url, true);
-  xhr.responseType = "json";
-  xhr.onload = function () {
-    var status = xhr.status;
-    if (status === 200) {
-      callback(null, xhr.response);
-    } else {
-      callback(status, xhr.response);
-    }
-  };
-  xhr.send();
 };
 
 String.prototype.capitalize = function () {

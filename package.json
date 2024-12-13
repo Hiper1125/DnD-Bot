@@ -1,6 +1,15 @@
 {
+  "name": "dungeon-helper",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node bot.js"
+  },
   "dependencies": {
-    "discord.js": "^14.7.1",
+    "@discordjs/builders": "^1.9.0",
+    "@discordjs/rest": "^2.4.0",
+    "discord-api-types": "^0.37.111",
+    "discord.js": "^14.16.3",
     "xhr2": "^0.2.1"
   }
 }

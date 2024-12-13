@@ -1,49 +1,42 @@
 const { SlashCommandBuilder } = require("@discordjs/builders");
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, PermissionsBitField } = require("discord.js");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("add")
     .setDescription("Add a user to a campaign")
-
     .addStringOption((option) =>
       option.setName("campaign").setDescription("Campaign").setRequired(true)
     )
-
     .addUserOption((option) =>
       option.setName("user").setDescription("User to add").setRequired(true)
     )
-
     .addStringOption((option) =>
       option
         .setName("role")
         .setDescription("Role to add")
         .setRequired(true)
         .addChoices(
-          {
-            name: "Adventurer",
-            value: "adventurer",
-          },
-          {
-            name: "Master",
-            value: "master",
-          }
+          { name: "Adventurer", value: "adventurer" },
+          { name: "Master", value: "master" }
         )
     ),
 
   async execute(interaction) {
-    await interaction.deferReply({ content: "Executing...", ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
 
-    const guild = DungeonHelper.guilds.cache.get(interaction.guildId);
+    const guild = interaction.client.guilds.cache.get(interaction.guildId);
+    const memberRoles = interaction.member.roles.cache;
+
     if (
-      interaction.member.roles.cache.get(
-        guild.roles.cache.find((r) => r.name === "Commander").id
-      ) != null ||
-      interaction.member.roles.cache.get(
-        guild.roles.cache.find((r) => r.name === "Adventurer").id
-      ) != null
+      memberRoles.has(
+        guild.roles.cache.find((r) => r.name === "Commander")?.id
+      ) ||
+      memberRoles.has(
+        guild.roles.cache.find((r) => r.name === "Adventurer")?.id
+      )
     ) {
-      const campaign = interaction.options.getString("campaign").capitalize();
+      const campaign = capitalize(interaction.options.getString("campaign"));
       const user = interaction.options.getUser("user");
       const role = interaction.options.getString("role");
 
@@ -51,47 +44,37 @@ module.exports = {
 
       const campaignRole = guild.roles.cache.find((r) => r.name === campaign);
       const campaignRoleMaster = guild.roles.cache.find(
-        (r) => r.name === campaign + " Master"
+        (r) => r.name === `${campaign} Master`
       );
       const campaignRoleOwner = guild.roles.cache.find(
-        (r) => r.name === campaign + " Owner"
+        (r) => r.name === `${campaign} Owner`
       );
 
-      if (role == "adventurer") {
-        // Controllo se ha permesso di aggiungere
-        if (interaction.member.roles.cache.get(campaignRoleMaster.id) != null) {
-          // Controllo per ruolo dell'interessato
+      if (role === "adventurer") {
+        if (memberRoles.has(campaignRoleMaster?.id)) {
           if (
-            member.roles.cache.get(campaignRoleMaster.id) == null ||
-            member.roles.cache.get(campaignRoleOwner.id) == null
+            !member.roles.cache.has(campaignRoleMaster?.id) &&
+            !member.roles.cache.has(campaignRoleOwner?.id)
           ) {
-            member.roles.add(campaignRole);
-
-            success(interaction, campaign, role, user);
+            await member.roles.add(campaignRole);
+            await success(interaction, campaign, role, user);
           } else {
-            error(interaction, campaign, role, user);
+            await error(interaction, campaign, role, user);
           }
-        } else if (
-          interaction.member.roles.cache.get(campaignRoleOwner.id) != null
-        ) {
-          member.roles.add(campaignRole);
-
-          member.roles.remove(campaignRoleMaster);
-
-          success(interaction, campaign, role, user);
+        } else if (memberRoles.has(campaignRoleOwner?.id)) {
+          await member.roles.add(campaignRole);
+          await member.roles.remove(campaignRoleMaster);
+          await success(interaction, campaign, role, user);
         } else {
-          error(interaction, campaign, role, user);
+          await error(interaction, campaign, role, user);
         }
-      } else if (role == "master") {
-        // Controllo se ha permesso di aggiungere
-        if (interaction.member.roles.cache.get(campaignRoleOwner.id) != null) {
-          member.roles.add(campaignRoleMaster);
-
-          member.roles.remove(campaignRole);
-
-          success(interaction, campaign, role, user);
+      } else if (role === "master") {
+        if (memberRoles.has(campaignRoleOwner?.id)) {
+          await member.roles.add(campaignRoleMaster);
+          await member.roles.remove(campaignRole);
+          await success(interaction, campaign, role, user);
         } else {
-          error(interaction, campaign, role, user);
+          await error(interaction, campaign, role, user);
         }
       }
     } else {
@@ -99,16 +82,18 @@ module.exports = {
         .setColor("#013455")
         .setTitle("Accept the rules")
         .setDescription("To use the commands you have to accept the rules")
-        .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-        .setThumbnail(DungeonHelper.user.displayAvatarURL())
+        .setAuthor({
+          name: "Dungeon Helper",
+          iconURL: interaction.client.user.displayAvatarURL(),
+        })
+        .setThumbnail(interaction.client.user.displayAvatarURL())
         .setFooter({
           text: `Dungeon Helper`,
-          iconURL: DungeonHelper.user.displayAvatarURL(),
+          iconURL: interaction.client.user.displayAvatarURL(),
         });
 
       await interaction.editReply({
         content: "Error!",
-        ephemeral: true,
         embeds: [embed],
       });
     }
@@ -118,25 +103,22 @@ module.exports = {
 async function error(interaction, campaign, role, user) {
   const embed = new EmbedBuilder()
     .setColor("#013455")
-    .setTitle("You don't have the permission to add the " + role)
+    .setTitle(`You don't have permission to add the ${role}`)
     .setDescription(
-      "Cannot add " +
-        role +
-        " to user " +
-        user.username +
-        " in the campaign " +
-        campaign
+      `Cannot add ${role} to user ${user.username} in the campaign ${campaign}`
     )
-    .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-    .setThumbnail(DungeonHelper.user.displayAvatarURL())
+    .setAuthor({
+      name: "Dungeon Helper",
+      iconURL: interaction.client.user.displayAvatarURL(),
+    })
+    .setThumbnail(interaction.client.user.displayAvatarURL())
     .setFooter({
       text: `Dungeon Helper`,
-      iconURL: DungeonHelper.user.displayAvatarURL(),
+      iconURL: interaction.client.user.displayAvatarURL(),
     });
 
   await interaction.editReply({
     content: "Error!",
-    ephemeral: true,
     embeds: [embed],
   });
 }
@@ -144,29 +126,26 @@ async function error(interaction, campaign, role, user) {
 async function success(interaction, campaign, role, user) {
   const embed = new EmbedBuilder()
     .setColor("#013455")
-    .setTitle("You have add a new " + role)
+    .setTitle(`You have added a new ${role}`)
     .setDescription(
-      "The user " +
-        user.username +
-        " is now a " +
-        role +
-        " of the campaign " +
-        campaign
+      `The user ${user.username} is now a ${role} of the campaign ${campaign}`
     )
-    .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-    .setThumbnail(DungeonHelper.user.displayAvatarURL())
+    .setAuthor({
+      name: "Dungeon Helper",
+      iconURL: interaction.client.user.displayAvatarURL(),
+    })
+    .setThumbnail(interaction.client.user.displayAvatarURL())
     .setFooter({
       text: `Dungeon Helper`,
-      iconURL: DungeonHelper.user.displayAvatarURL(),
+      iconURL: interaction.client.user.displayAvatarURL(),
     });
 
   await interaction.editReply({
-    content: "Succes!",
-    ephemeral: true,
+    content: "Success!",
     embeds: [embed],
   });
 }
 
-String.prototype.capitalize = function () {
-  return this.charAt(0).toUpperCase() + this.slice(1).toLowerCase();
-};
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}

@@ -1,15 +1,13 @@
-const { SlashCommandBuilder } = require("@discordjs/builders");
+const { SlashCommandBuilder } = require("discord.js");
 const { EmbedBuilder } = require("discord.js");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("remove")
-    .setDescription("Remove a user to a campaign")
-
+    .setDescription("Remove a user from a campaign")
     .addStringOption((option) =>
       option.setName("campaign").setDescription("Campaign").setRequired(true)
     )
-
     .addUserOption((option) =>
       option.setName("user").setDescription("User to remove").setRequired(true)
     ),
@@ -17,18 +15,18 @@ module.exports = {
   async execute(interaction) {
     await interaction.deferReply({ content: "Executing...", ephemeral: true });
 
-    const guild = DungeonHelper.guilds.cache.get(interaction.guildId);
+    const guild = interaction.guild; // Use the interaction guild directly
+    const commanderRole = guild.roles.cache.find((r) => r.name === "Commander");
+    const adventurerRole = guild.roles.cache.find(
+      (r) => r.name === "Adventurer"
+    );
+
     if (
-      interaction.member.roles.cache.get(
-        guild.roles.cache.find((r) => r.name === "Commander").id
-      ) != null ||
-      interaction.member.roles.cache.get(
-        guild.roles.cache.find((r) => r.name === "Adventurer").id
-      ) != null
+      interaction.member.roles.cache.has(commanderRole.id) ||
+      interaction.member.roles.cache.has(adventurerRole.id)
     ) {
       const campaign = interaction.options.getString("campaign").capitalize();
       const user = interaction.options.getUser("user");
-
       const member = guild.members.cache.get(user.id);
 
       const campaignRole = guild.roles.cache.find((r) => r.name === campaign);
@@ -39,23 +37,19 @@ module.exports = {
         (r) => r.name === campaign + " Owner"
       );
 
-      if (interaction.member.roles.cache.get(campaignRoleMaster.id) != null) {
+      if (interaction.member.roles.cache.has(campaignRoleMaster.id)) {
         if (
-          member.roles.cache.get(campaignRoleMaster.id) != null &&
-          member.roles.cache.get(campaignRoleOwner.id) != null
+          member.roles.cache.has(campaignRoleMaster.id) &&
+          member.roles.cache.has(campaignRoleOwner.id)
         ) {
-          member.roles.remove(campaignRole);
-
+          await member.roles.remove(campaignRole);
           success(interaction, campaign, user);
         } else {
           error(interaction, campaign, user);
         }
-      } else if (
-        interaction.member.roles.cache.get(campaignRoleOwner.id) != null
-      ) {
-        member.roles.remove(campaignRole);
-        member.roles.remove(campaignRoleMaster);
-
+      } else if (interaction.member.roles.cache.has(campaignRoleOwner.id)) {
+        await member.roles.remove(campaignRole);
+        await member.roles.remove(campaignRoleMaster);
         success(interaction, campaign, user);
       } else {
         error(interaction, campaign, user);
@@ -65,11 +59,14 @@ module.exports = {
         .setColor("#013455")
         .setTitle("Accept the rules")
         .setDescription("To use the commands you have to accept the rules")
-        .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-        .setThumbnail(DungeonHelper.user.displayAvatarURL())
+        .setAuthor({
+          name: "Dungeon Helper",
+          iconURL: interaction.client.user.displayAvatarURL(),
+        })
+        .setThumbnail(interaction.client.user.displayAvatarURL())
         .setFooter({
           text: `Dungeon Helper`,
-          iconURL: DungeonHelper.user.displayAvatarURL(),
+          iconURL: interaction.client.user.displayAvatarURL(),
         });
 
       await interaction.editReply({
@@ -86,16 +83,16 @@ async function error(interaction, campaign, user) {
     .setColor("#013455")
     .setTitle("You don't have the permission to remove")
     .setDescription(
-      "Cannot remove the user " +
-        user.username +
-        " from the campaign " +
-        campaign
+      `Cannot remove the user ${user.username} from the campaign ${campaign}`
     )
-    .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-    .setThumbnail(DungeonHelper.user.displayAvatarURL())
+    .setAuthor({
+      name: "Dungeon Helper",
+      iconURL: interaction.client.user.displayAvatarURL(),
+    })
+    .setThumbnail(interaction.client.user.displayAvatarURL())
     .setFooter({
       text: `Dungeon Helper`,
-      iconURL: DungeonHelper.user.displayAvatarURL(),
+      iconURL: interaction.client.user.displayAvatarURL(),
     });
 
   await interaction.editReply({
@@ -110,17 +107,20 @@ async function success(interaction, campaign, user) {
     .setColor("#013455")
     .setTitle("You have removed")
     .setDescription(
-      "The user " + user.username + " is removed from the campaign " + campaign
+      `The user ${user.username} is removed from the campaign ${campaign}`
     )
-    .setAuthor({ name: 'Dungeon Helper', iconURL: DungeonHelper.user.displayAvatarURL()})
-    .setThumbnail(DungeonHelper.user.displayAvatarURL())
+    .setAuthor({
+      name: "Dungeon Helper",
+      iconURL: interaction.client.user.displayAvatarURL(),
+    })
+    .setThumbnail(interaction.client.user.displayAvatarURL())
     .setFooter({
       text: `Dungeon Helper`,
-      iconURL: DungeonHelper.user.displayAvatarURL(),
+      iconURL: interaction.client.user.displayAvatarURL(),
     });
 
   await interaction.editReply({
-    content: "Succes!",
+    content: "Success!",
     ephemeral: true,
     embeds: [embed],
   });
